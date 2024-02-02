@@ -26,15 +26,17 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		buff := make([]byte, 1024)
-		nBytes, err := conn.Read(buff)
-		if err != nil {
-			conn.Close()
-			continue
+		for {
+			buff := make([]byte, 1024)
+			nBytes, err := conn.Read(buff)
+			if err != nil || nBytes == 0 {
+				conn.Close()
+				break
+			}
+			fmt.Println("Recieved[raw]: ", buff[:nBytes])
+			conn.Write([]byte("+PONG\r\n"))
 		}
-		fmt.Println("Recieved[raw]: ", buff[:nBytes])
-		conn.Write([]byte("+PONG\r\n"))
-		conn.Close()
+
 	}
 
 }
