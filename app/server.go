@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 
 	// Uncomment this block to pass the first stage
 	"net"
@@ -33,23 +33,33 @@ func main() {
 
 }
 func handleRequest(conn net.Conn) {
+	kvStore := make(map[string]string)
 	for {
 		buff := make([]byte, 1024)
 		nBytes, err := conn.Read(buff)
+
 		if err != nil || nBytes == 0 {
 			conn.Close()
 			break
 		}
-		// for i := 0; i < nBytes; i++{
 
-		// }
 		fmt.Println("Recieved[raw]: ", buff[:nBytes])
-		runes := bytes.Split(buff[:nBytes], []byte("\r\n"))
-		if string(runes[2]) == "echo" || string(runes[2]) == "ECHO" {
-			resp := "+" + string(runes[4]) + "\r\n"
+		chunks := strings.Split(string(buff[:nBytes]), ("\r\n"))
+		fmt.Println("Recieved[str]: ", chunks)
+		command := strings.ToUpper(chunks[2])
+		switch command {
+		case "PING":
+			conn.Write([]byte("+PONG\r\n"))
+		case "ECHO":
+			resp := "+" + chunks[4] + "\r\n"
 			conn.Write([]byte(resp))
+		case "SET":
+			kvStore[chunks[4]] = chunks[6]
+			fmt.Println(kvStore)
+			conn.Write([]byte("+OK\r\n"))
+		case "GET":
+			conn.Write([]byte("+" + kvStore[chunks[4]] + "\r\n"))
 		}
-		conn.Write([]byte("+PONG\r\n"))
 	}
 
 }
