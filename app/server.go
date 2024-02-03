@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	// Uncomment this block to pass the first stage
 	"net"
@@ -55,11 +57,26 @@ func handleRequest(conn net.Conn) {
 			conn.Write([]byte(resp))
 		case "SET":
 			kvStore[chunks[4]] = chunks[6]
+			if len(chunks) > 8 {
+				param := strings.ToUpper(chunks[8])
+				switch param {
+				case "PX":
+					ttl, _ := strconv.Atoi(chunks[10])
+					go func() {
+						<-time.After(time.Duration(ttl) * time.Millisecond)
+						delete(kvStore, chunks[4])
+					}()
+				}
+			}
 			fmt.Println(kvStore)
 			conn.Write([]byte("+OK\r\n"))
 		case "GET":
-			conn.Write([]byte("+" + kvStore[chunks[4]] + "\r\n"))
+			val := kvStore[chunks[4]]
+			if val == "" {
+				conn.Write([]byte("$" + strconv.Itoa(-1) + "\r\n"))
+			} else {
+				conn.Write([]byte("+" + val + "\r\n"))
+			}
 		}
 	}
-
 }
