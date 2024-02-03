@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,6 +18,10 @@ func main() {
 
 	// Uncomment this block to pass the first stage
 	//
+	dir := flag.String("dir", "", "Dirctory of RDB")
+	dbfilename := flag.String("dbfilename", "", "File Name of RDB")
+
+	flag.Parse()
 	listener, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
@@ -30,12 +35,15 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		go handleRequest(conn)
+		go handleRequest(conn, *dir, *dbfilename)
 	}
 
 }
-func handleRequest(conn net.Conn) {
+func handleRequest(conn net.Conn, dir string, dbfilename string) {
 	kvStore := make(map[string]string)
+	kvStore["dir"] = dir
+	kvStore["dbfilename"] = dbfilename
+
 	for {
 		buff := make([]byte, 1024)
 		nBytes, err := conn.Read(buff)
@@ -76,6 +84,16 @@ func handleRequest(conn net.Conn) {
 				conn.Write([]byte("$" + strconv.Itoa(-1) + "\r\n"))
 			} else {
 				conn.Write([]byte("+" + val + "\r\n"))
+			}
+		case "CONFIG":
+			if strings.ToUpper(chunks[4]) == "GET" && strings.ToUpper(chunks[6]) == "DIR" {
+				val := kvStore["dir"]
+				if val == "" {
+					conn.Write([]byte("$" + strconv.Itoa(-1) + "\r\n"))
+				} else {
+					resp := "*2" + "\r\n" + "$3\r\ndir\r\n$" + strconv.Itoa(len(val)) + "\r\n" + val + "\r\n"
+					conn.Write([]byte(resp))
+				}
 			}
 		}
 	}
