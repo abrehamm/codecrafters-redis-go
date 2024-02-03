@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+
 	// Uncomment this block to pass the first stage
 	"net"
 	"os"
@@ -38,7 +40,15 @@ func handleRequest(conn net.Conn) {
 			conn.Close()
 			break
 		}
+		// for i := 0; i < nBytes; i++{
+
+		// }
 		fmt.Println("Recieved[raw]: ", buff[:nBytes])
+		runes := bytes.Split(buff[:nBytes], []byte("\r\n"))
+		if string(runes[2]) == "echo" || string(runes[2]) == "ECHO" {
+			resp := "+" + string(runes[4]) + "\r\n"
+			conn.Write([]byte(resp))
+		}
 		conn.Write([]byte("+PONG\r\n"))
 	}
 
