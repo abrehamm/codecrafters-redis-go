@@ -13,11 +13,7 @@ import (
 )
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	// fmt.Println("Logs from your program will appear here!")
 
-	// Uncomment this block to pass the first stage
-	//
 	dir := flag.String("dir", "", "Dirctory of RDB")
 	dbfilename := flag.String("dbfilename", "", "File Name of RDB")
 
@@ -95,6 +91,57 @@ func handleRequest(conn net.Conn, dir string, dbfilename string) {
 					conn.Write([]byte(resp))
 				}
 			}
+		case "KEYS":
+			file, err := os.Open(dir + "/" + dbfilename)
+			if err != nil {
+				fmt.Println("Error reading RDB file: ", err.Error())
+			} else {
+				key := readSingleKey(file)
+				resp := "*1" + "\r\n$" + strconv.Itoa(len(key)) + "\r\n" + key + "\r\n"
+				conn.Write([]byte(resp))
+				file.Close()
+			}
 		}
 	}
+}
+
+func readSingleKey(file *os.File) string {
+	opCode := make([]byte, 1)
+	// Assuming single db & redis version > 7, RESIZEDB opcode is the closest to keys
+	// skip all bytes until the first 0xfb is reached
+	for file.Read(opCode); opCode[0] != 0xfb; file.Read(opCode) {
+	}
+
+	// skip RESIZEDB params
+	lenMask := 0xc0 // the two msbits determining length encoding
+	for i := 0; i < 2; i++ {
+		file.Read(opCode)
+		switch lenMask & int(opCode[0]) {
+		case 0x00:
+			file.Seek(0, 1)
+		case 0x40:
+			file.Seek(1, 1)
+		case 0x80:
+			file.Seek(4, 1)
+		}
+	}
+
+	// skip expiry time params
+	file.Read(opCode)
+	switch int(opCode[0]) {
+	case 0x00:
+		file.Seek(0, 1)
+	case 0xfd:
+		file.Seek(4, 1)
+	case 0xfc:
+		file.Seek(8, 1)
+	}
+
+	//read length of key
+	file.Read(opCode)
+
+	key := make([]byte, int(opCode[0]))
+	file.Read(key)
+
+	return string(key)
 }
