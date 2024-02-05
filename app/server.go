@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"strconv"
@@ -76,7 +78,18 @@ func handleRequest(conn net.Conn, dir string, dbfilename string) {
 			conn.Write([]byte("+OK\r\n"))
 		case "GET":
 			val := kvStore[chunks[4]]
-			if val == "" {
+			if val == "" && dir != "" {
+				file, err := os.Open(dir + "/" + dbfilename)
+				if err != nil {
+					fmt.Println("Error reading RDB file: ", err.Error())
+				} else {
+					_, offset := readSingleKey(file)
+					value := readSingleValueRDB(file, offset)
+					resp := "$" + strconv.Itoa(len(value)) + "\r\n" + value + "\r\n"
+					file.Close()
+					conn.Write([]byte(resp))
+				}
+			} else if val == "" && dir == "" {
 				conn.Write([]byte("$" + strconv.Itoa(-1) + "\r\n"))
 			} else {
 				conn.Write([]byte("+" + val + "\r\n"))
@@ -96,7 +109,7 @@ func handleRequest(conn net.Conn, dir string, dbfilename string) {
 			if err != nil {
 				fmt.Println("Error reading RDB file: ", err.Error())
 			} else {
-				key := readSingleKey(file)
+				key, _ := readSingleKey(file)
 				resp := "*1" + "\r\n$" + strconv.Itoa(len(key)) + "\r\n" + key + "\r\n"
 				conn.Write([]byte(resp))
 				file.Close()
@@ -105,7 +118,7 @@ func handleRequest(conn net.Conn, dir string, dbfilename string) {
 	}
 }
 
-func readSingleKey(file *os.File) string {
+func readSingleKey(file *os.File) (string, int64) {
 	opCode := make([]byte, 1)
 	// Assuming single db & redis version > 7, RESIZEDB opcode is the closest to keys
 	// skip all bytes until the first 0xfb is reached
@@ -143,5 +156,40 @@ func readSingleKey(file *os.File) string {
 	key := make([]byte, int(opCode[0]))
 	file.Read(key)
 
-	return string(key)
+	//return offset of key as well
+	offset, _ := file.Seek(0, 1)
+
+	return string(key), offset
+}
+
+func readSingleValueRDB(file *os.File, offset int64) string {
+	lenEncoding := make([]byte, 1)
+	file.ReadAt(lenEncoding, offset)
+	lenMask := 0xc0 // the two msbits determining length encoding
+
+	var lenValue int32
+	switch lenMask & int(lenEncoding[0]) {
+	case 0x00:
+		lenBytes := make([]byte, 1)
+		file.Read(lenBytes)
+		lenValue = int32(lenBytes[0])
+	case 0x40:
+		lenBytes := make([]byte, 2)
+		file.Read(lenBytes)
+		var allBytes int32
+		buf := bytes.NewReader(lenBytes)
+		binary.Read(buf, binary.BigEndian, &allBytes)
+		lenValue = allBytes & 0x00003fff // to get the 6 lsbits of first byte & combine with next byte
+	case 0x80:
+		file.Seek(1, 1)
+		lenBytes := make([]byte, 4)
+		file.Read(lenBytes)
+		var allBytes int32
+		buf := bytes.NewReader(lenBytes)
+		binary.Read(buf, binary.BigEndian, &allBytes)
+		lenValue = allBytes
+	}
+	value := make([]byte, lenValue)
+	file.Read(value)
+	return string(value)
 }
