@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"os"
+	"time"
 )
 
 func skipUntilKV(file *os.File) {
@@ -28,25 +30,37 @@ func skipUntilKV(file *os.File) {
 	}
 }
 
-func readSingleKeyRDB(file *os.File) string {
+func readSingleKeyRDB(file *os.File) (string, bool) {
+	isExpired := true
+	key := ""
+
+	// expiry time params
 	opCode := make([]byte, 1)
-
-	// skip expiry time params
 	file.Read(opCode)
-	switch int(opCode[0]) {
-	case 0x00:
-		file.Seek(0, 1)
-	case 0xfd:
-		file.Seek(4, 1)
-	case 0xfc:
-		file.Seek(8, 1)
+	timerOpCode := int(opCode[0])
+	timeByteLengths := map[int]int{0x00: 0, 0xfd: 4, 0xfc: 8}
+	timeBytes := make([]byte, timeByteLengths[timerOpCode])
+	file.Read(timeBytes)
+	var unixStamp int64
+	buf := bytes.NewReader(timeBytes)
+	binary.Read(buf, binary.LittleEndian, &unixStamp)
+	if int(opCode[0]) == 0xfc {
+		unixStamp /= 1000
 	}
-
+	expiryTime := time.Unix(unixStamp, 0)
+	if timerOpCode != 0 {
+		file.Read(opCode)
+	} // if either FC or FD are encountered, the next byte after timestamp bytes is value type code
 	file.Read(opCode) //read length of key
-	key := make([]byte, int(opCode[0]))
-	file.Read(key)
+	keyBytes := make([]byte, int(opCode[0]))
+	file.Read(keyBytes)
+	key = string(keyBytes)
+	fmt.Println(key)
+	if timerOpCode == 0 || expiryTime.After(time.Now()) {
+		isExpired = false
+	} // timerOpCode == 0 is for keys with no expiry set
+	return key, isExpired
 
-	return string(key)
 }
 
 func readSingleValueRDB(file *os.File) string {
@@ -93,14 +107,18 @@ func parseRDBToStore(file *os.File, kvStore map[string]string) {
 	opCode := make([]byte, 1)
 	skipUntilKV(file)
 	var key, value string
+	var isExpired bool
 	for {
+		isExpired = false
 		file.Read(opCode)
 		if int(opCode[0]) == 0xff {
 			break
 		}
 		file.Seek(-1, 1)
-		key = readSingleKeyRDB(file)
+		key, isExpired = readSingleKeyRDB(file)
 		value = readSingleValueRDB(file)
-		kvStore[key] = value
+		if !isExpired {
+			kvStore[key] = value
+		}
 	}
 }
