@@ -106,6 +106,8 @@ func handleRequest(conn net.Conn, dir string, dbfilename string) {
 			resp := "*" + strconv.Itoa(len(kvStore)) + "\r\n"
 			resp += strings.Join(ks, "\r\n") + "\r\n"
 			conn.Write([]byte(resp))
+		case "INFO":
+			conn.Write([]byte("$11\r\nrole:master\r\n"))
 		}
 	}
 }
