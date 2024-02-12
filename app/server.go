@@ -16,11 +16,13 @@ func main() {
 
 	dir := flag.String("dir", "", "Dirctory of RDB")
 	dbfilename := flag.String("dbfilename", "", "File Name of RDB")
+	port := flag.Int("port", 6379, "Port number")
 
 	flag.Parse()
-	listener, err := net.Listen("tcp", "0.0.0.0:6379")
+	portString := strconv.Itoa(*port)
+	listener, err := net.Listen("tcp", "0.0.0.0:"+portString)
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		fmt.Println("Failed to bind to port " + portString)
 		os.Exit(1)
 	}
 
