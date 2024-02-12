@@ -17,8 +17,10 @@ func main() {
 	dir := flag.String("dir", "", "Dirctory of RDB")
 	dbfilename := flag.String("dbfilename", "", "File Name of RDB")
 	port := flag.Int("port", 6379, "Port number")
+	replicaof := flag.String("replicaof", "", "Master server")
 
 	flag.Parse()
+	// masterAddress := flag.Args()
 	portString := strconv.Itoa(*port)
 	listener, err := net.Listen("tcp", "0.0.0.0:"+portString)
 	if err != nil {
@@ -33,11 +35,11 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		go handleRequest(conn, *dir, *dbfilename)
+		go handleRequest(conn, *dir, *dbfilename, *replicaof)
 	}
 
 }
-func handleRequest(conn net.Conn, dir string, dbfilename string) {
+func handleRequest(conn net.Conn, dir string, dbfilename string, replicaof string) {
 	kvStore := make(map[string]string)
 
 	if dbfilename != "" {
@@ -107,7 +109,11 @@ func handleRequest(conn net.Conn, dir string, dbfilename string) {
 			resp += strings.Join(ks, "\r\n") + "\r\n"
 			conn.Write([]byte(resp))
 		case "INFO":
-			conn.Write([]byte("$11\r\nrole:master\r\n"))
+			if replicaof != "" {
+				conn.Write([]byte("$10\r\nrole:slave\r\n"))
+			} else {
+				conn.Write([]byte("$11\r\nrole:master\r\n"))
+			}
 		}
 	}
 }
