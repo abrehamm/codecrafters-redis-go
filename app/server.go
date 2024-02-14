@@ -19,14 +19,27 @@ func main() {
 	replicaof := flag.String("replicaof", "", "Master server")
 	masterReplId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	offset := 0
+	masterPort := ""
 
 	flag.Parse()
-	// masterAddress := flag.Args()
+	if args := flag.Args(); len(args) > 0 {
+		masterPort = args[0]
+	}
 	portString := strconv.Itoa(*port)
 	listener, err := net.Listen("tcp", "0.0.0.0:"+portString)
 	if err != nil {
 		fmt.Println("Failed to bind to port " + portString)
 		os.Exit(1)
+	}
+
+	if *replicaof != "" {
+		masterConn, err := net.Dial("tcp", *replicaof+":"+masterPort)
+		if err != nil {
+			fmt.Println("Failed to PING master at " + *replicaof + ":" + masterPort)
+			os.Exit(1)
+		}
+		masterConn.Write([]byte("*1\r\n$4\r\nping\r\n"))
+		defer masterConn.Close()
 	}
 
 	defer listener.Close()
