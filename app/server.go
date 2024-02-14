@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	// Uncomment this block to pass the first stage
 	"net"
 	"os"
 )
@@ -18,6 +17,8 @@ func main() {
 	dbfilename := flag.String("dbfilename", "", "File Name of RDB")
 	port := flag.Int("port", 6379, "Port number")
 	replicaof := flag.String("replicaof", "", "Master server")
+	masterReplId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+	offset := 0
 
 	flag.Parse()
 	// masterAddress := flag.Args()
@@ -35,11 +36,11 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		go handleRequest(conn, *dir, *dbfilename, *replicaof)
+		go handleRequest(conn, *dir, *dbfilename, *replicaof, masterReplId, offset)
 	}
 
 }
-func handleRequest(conn net.Conn, dir string, dbfilename string, replicaof string) {
+func handleRequest(conn net.Conn, dir string, dbfilename string, replicaof string, replId string, offset int) {
 	kvStore := make(map[string]string)
 
 	if dbfilename != "" {
@@ -109,11 +110,18 @@ func handleRequest(conn net.Conn, dir string, dbfilename string, replicaof strin
 			resp += strings.Join(ks, "\r\n") + "\r\n"
 			conn.Write([]byte(resp))
 		case "INFO":
+			role := "master"
 			if replicaof != "" {
-				conn.Write([]byte("$10\r\nrole:slave\r\n"))
-			} else {
-				conn.Write([]byte("$11\r\nrole:master\r\n"))
+				role = "slave"
 			}
+			data := []string{
+				"role:" + role,
+				"master_replid:" + replId,
+				"master_repl_offset:" + strconv.Itoa(offset),
+			}
+			resp := formatRESP(data, "bulkString")
+			conn.Write([]byte(resp))
+
 		}
 	}
 }
