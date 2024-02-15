@@ -37,6 +37,9 @@ func main() {
 		command = formatRESP([]string{"REPLCONF", "capa", "psync2"}, "array")
 		masterConn.Write([]byte(command))
 		masterConn.Read(buff)
+		command = formatRESP([]string{"PSYNC", "?", "-1"}, "array")
+		masterConn.Write([]byte(command))
+		masterConn.Read(buff)
 		defer masterConn.Close()
 	}
 
