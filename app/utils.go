@@ -7,7 +7,7 @@ import (
 // formatRESP returns RESP formatted string of params passed in data.
 //
 //	data - array of strings to be returned as response
-//	format - "buklString" for now
+//	format - "buklString", "array" for now
 func formatRESP(data []string, format string) string {
 	if format == "" {
 		format = "bulkString"

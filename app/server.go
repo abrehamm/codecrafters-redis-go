@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,32 +12,31 @@ import (
 
 func main() {
 
-	dir := flag.String("dir", "", "Dirctory of RDB")
-	dbfilename := flag.String("dbfilename", "", "File Name of RDB")
-	port := flag.Int("port", 6379, "Port number")
-	replicaof := flag.String("replicaof", "", "Master server")
-	masterReplId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-	offset := 0
-	masterPort := ""
+	config := setConfig()
 
-	flag.Parse()
-	if args := flag.Args(); len(args) > 0 {
-		masterPort = args[0]
-	}
-	portString := strconv.Itoa(*port)
-	listener, err := net.Listen("tcp", "0.0.0.0:"+portString)
+	listener, err := net.Listen("tcp", "0.0.0.0:"+config.port)
 	if err != nil {
-		fmt.Println("Failed to bind to port " + portString)
+		fmt.Println("Failed to bind to port " + config.port)
 		os.Exit(1)
 	}
 
-	if *replicaof != "" {
-		masterConn, err := net.Dial("tcp", *replicaof+":"+masterPort)
+	if config.replicaof != "" {
+		buff := make([]byte, 1024)
+		masterConn, err := net.Dial("tcp", config.replicaof+":"+config.masterPort)
 		if err != nil {
-			fmt.Println("Failed to PING master at " + *replicaof + ":" + masterPort)
+			fmt.Println("Failed to PING master at " + config.replicaof + ":" + config.masterPort)
 			os.Exit(1)
 		}
-		masterConn.Write([]byte("*1\r\n$4\r\nping\r\n"))
+		// handshake with master
+		command := formatRESP([]string{"ping"}, "array")
+		masterConn.Write([]byte(command))
+		masterConn.Read(buff)
+		command = formatRESP([]string{"REPLCONF", "listening-port", config.port}, "array")
+		masterConn.Write([]byte(command))
+		masterConn.Read(buff)
+		command = formatRESP([]string{"REPLCONF", "capa", "psync2"}, "array")
+		masterConn.Write([]byte(command))
+		masterConn.Read(buff)
 		defer masterConn.Close()
 	}
 
@@ -49,15 +47,15 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		go handleRequest(conn, *dir, *dbfilename, *replicaof, masterReplId, offset)
+		go handleRequest(conn, *config)
 	}
 
 }
-func handleRequest(conn net.Conn, dir string, dbfilename string, replicaof string, replId string, offset int) {
+func handleRequest(conn net.Conn, config configType) {
 	kvStore := make(map[string]string)
 
-	if dbfilename != "" {
-		file, err := os.Open(dir + "/" + dbfilename)
+	if config.dbfilename != "" {
+		file, err := os.Open(config.dir + "/" + config.dbfilename)
 		if err != nil {
 			fmt.Println("Error reading RDB file: ", err.Error())
 		} else {
@@ -107,10 +105,10 @@ func handleRequest(conn net.Conn, dir string, dbfilename string, replicaof strin
 			}
 		case "CONFIG":
 			if strings.ToUpper(chunks[4]) == "GET" && strings.ToUpper(chunks[6]) == "DIR" {
-				if dir == "" {
+				if config.dir == "" {
 					conn.Write([]byte("$" + strconv.Itoa(-1) + "\r\n"))
 				} else {
-					resp := "*2" + "\r\n" + "$3\r\ndir\r\n$" + strconv.Itoa(len(dir)) + "\r\n" + dir + "\r\n"
+					resp := "*2" + "\r\n" + "$3\r\ndir\r\n$" + strconv.Itoa(len(config.dir)) + "\r\n" + config.dir + "\r\n"
 					conn.Write([]byte(resp))
 				}
 			}
@@ -124,13 +122,13 @@ func handleRequest(conn net.Conn, dir string, dbfilename string, replicaof strin
 			conn.Write([]byte(resp))
 		case "INFO":
 			role := "master"
-			if replicaof != "" {
+			if config.replicaof != "" {
 				role = "slave"
 			}
 			data := []string{
 				"role:" + role,
-				"master_replid:" + replId,
-				"master_repl_offset:" + strconv.Itoa(offset),
+				"master_replid:" + config.masterReplId,
+				"master_repl_offset:" + strconv.Itoa(config.offset),
 			}
 			resp := formatRESP(data, "bulkString")
 			conn.Write([]byte(resp))
