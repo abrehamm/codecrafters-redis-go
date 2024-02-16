@@ -137,6 +137,14 @@ func handleRequest(conn net.Conn, config configType) {
 			conn.Write([]byte(resp))
 		case "REPLCONF":
 			conn.Write([]byte(formatRESP([]string{"OK"}, "simpleString")))
+		case "PSYNC":
+			command = formatRESP(
+				[]string{
+					"FULLRESYNC",
+					config.masterReplId,
+					strconv.Itoa(config.offset)},
+				"simpleString")
+			conn.Write([]byte(command))
 		}
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 // formatRESP returns RESP formatted string of params passed in data.
@@ -20,7 +21,7 @@ func formatRESP(data []string, format string) string {
 			resp += fmt.Sprintf("$%d\r\n%s\r\n", len(d), d)
 		}
 	case "simpleString":
-		resp = fmt.Sprintf("+%s\r\n", data[0])
+		resp = fmt.Sprintf("+%s\r\n", strings.Join(data, " "))
 	case "bulkString":
 		for _, d := range data {
 			resp += fmt.Sprintf("%s\r\n", d)
