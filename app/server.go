@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -145,6 +146,10 @@ func handleRequest(conn net.Conn, config configType) {
 					strconv.Itoa(config.offset)},
 				"simpleString")
 			conn.Write([]byte(command))
+			emptyB64RDB := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
+			file, _ := base64.StdEncoding.DecodeString(emptyB64RDB)
+			resp := append([]byte("$"+strconv.Itoa(len(file))+"\r\n"), file...)
+			conn.Write(resp)
 		}
 	}
 }
