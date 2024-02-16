@@ -135,7 +135,8 @@ func handleRequest(conn net.Conn, config configType) {
 			}
 			resp := formatRESP(data, "bulkString")
 			conn.Write([]byte(resp))
-
+		case "REPLCONF":
+			conn.Write([]byte(formatRESP([]string{"OK"}, "simpleString")))
 		}
 	}
 }
