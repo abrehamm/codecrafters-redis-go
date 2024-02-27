@@ -100,6 +100,7 @@ func handleRequest(conn net.Conn, config configType) {
 				}
 			}
 			conn.Write([]byte("+OK\r\n"))
+
 			if config.replicaof == "" {
 				for _, s := range config.slaves {
 					s.Write(buff[:nBytes])
