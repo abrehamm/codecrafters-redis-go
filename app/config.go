@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"net"
 	"strconv"
 )
 
@@ -13,6 +14,7 @@ type configType struct {
 	masterReplId string
 	offset       int
 	masterPort   string
+	slaves       map[string]net.Conn
 }
 
 func setConfig() *configType {
@@ -23,6 +25,7 @@ func setConfig() *configType {
 	masterReplId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	offset := 0
 	masterPort := ""
+	slaves := map[string]net.Conn{}
 
 	flag.Parse()
 	if args := flag.Args(); len(args) > 0 {
@@ -37,5 +40,6 @@ func setConfig() *configType {
 		masterReplId: masterReplId,
 		offset:       offset,
 		masterPort:   masterPort,
+		slaves:       slaves,
 	}
 }

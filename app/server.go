@@ -100,6 +100,13 @@ func handleRequest(conn net.Conn, config configType) {
 				}
 			}
 			conn.Write([]byte("+OK\r\n"))
+			go func() {
+				if config.replicaof == "" {
+					for _, s := range config.slaves {
+						s.Write(buff[:nBytes])
+					}
+				}
+			}()
 		case "GET":
 			val := kvStore[chunks[4]]
 			if val == "" {
@@ -137,6 +144,7 @@ func handleRequest(conn net.Conn, config configType) {
 			resp := formatRESP(data, "bulkString")
 			conn.Write([]byte(resp))
 		case "REPLCONF":
+			config.slaves[conn.RemoteAddr().String()] = conn
 			conn.Write([]byte(formatRESP([]string{"OK"}, "simpleString")))
 		case "PSYNC":
 			command = formatRESP(
