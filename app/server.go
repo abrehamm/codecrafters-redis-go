@@ -100,13 +100,12 @@ func handleRequest(conn net.Conn, config configType) {
 				}
 			}
 			conn.Write([]byte("+OK\r\n"))
-			go func() {
-				if config.replicaof == "" {
-					for _, s := range config.slaves {
-						s.Write(buff[:nBytes])
-					}
+			if config.replicaof == "" {
+				for _, s := range config.slaves {
+					s.Write(buff[:nBytes])
 				}
-			}()
+			}
+
 		case "GET":
 			val := kvStore[chunks[4]]
 			if val == "" {
