@@ -51,7 +51,8 @@ func main() {
 		masterConn.Read(buff)
 		command = formatRESP([]string{"PSYNC", "?", "-1"}, "array")
 		masterConn.Write([]byte(command))
-		masterConn.Read(buff)
+		// masterConn.Read(buff)
+		// time.Sleep(10 * time.Millisecond)
 		defer masterConn.Close()
 		go handleRequest(masterConn, *config, kvStore)
 
@@ -171,8 +172,18 @@ func handleCommand(command []string, conn net.Conn, config configType, kvStore m
 		resp := formatRESP(data, "bulkString")
 		conn.Write([]byte(resp))
 	case "REPLCONF":
-		config.slaves[conn.RemoteAddr().String()] = conn
-		conn.Write([]byte(formatRESP([]string{"OK"}, "simpleString")))
+		if len(command) > 1 && strings.ToUpper(command[1]) == "GETACK" {
+			data := []string{
+				"REPLCONF",
+				"ACK",
+				"0",
+			}
+			resp := formatRESP(data, "array")
+			conn.Write([]byte(resp))
+		} else {
+			config.slaves[conn.RemoteAddr().String()] = conn
+			conn.Write([]byte(formatRESP([]string{"OK"}, "simpleString")))
+		}
 	case "PSYNC":
 		commandResp := formatRESP(
 			[]string{
